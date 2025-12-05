@@ -14,11 +14,14 @@ fraud_detection_project/
 ├── data/
 │   ├── transactions.csv         # generated dataset (not committed by default)
 │   └── generate_data.py         # script to create the synthetic dataset
+├── notebooks/
+│   ├── eda.ipynb                # exploratory data analysis script
+│   └── unsupervised.ipynb       # model training and MLflow logging
+├── plots/                       # directory with plot output for eda and dimensionality reduction
 ├── src/
-│   ├── eda.py                   # exploratory data analysis script
 │   └── train.py                 # model training and MLflow logging
-├── requirements.txt            # Python dependencies
-└── README.md                   # project overview and instructions
+├── requirements.txt             # Python dependencies
+└── README.md                    # project overview and instructions
 ```
 
 ## Dataset description
