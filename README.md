@@ -1,0 +1,98 @@
+# Fraud Detection and Risk Project
+
+This project demonstrates a complete workflow for detecting and managing multiple types of fraud risk within a synthetic transaction dataset.  It includes:
+
+* A **synthetic dataset** generator that creates a realistic collection of financial transactions with multiple correlated target variables.
+* An **exploratory data analysis** (EDA) script to understand the data distribution and relationships between features and targets.
+* A **model training** script that fits machine‑learning models to predict several risk indicators at once and logs experiments using **MLflow**.
+* A simple project structure that can be uploaded to GitHub or used as a starting point for more advanced fraud‑analytics work.
+
+## Project structure
+
+```
+fraud_detection_project/
+├── data/
+│   ├── transactions.csv         # generated dataset (not committed by default)
+│   └── generate_data.py         # script to create the synthetic dataset
+├── src/
+│   ├── eda.py                   # exploratory data analysis script
+│   └── train.py                 # model training and MLflow logging
+├── requirements.txt            # Python dependencies
+└── README.md                   # project overview and instructions
+```
+
+## Dataset description
+
+Realistic, publicly available datasets that simultaneously measure fraud likelihood, chargeback risk, account takeover probability, and anomaly score are difficult to find due to privacy concerns.  To illustrate multivariate fraud‑analysis techniques, we therefore generate a **synthetic dataset** with the following characteristics:
+
+* **Features:** 20 numerical variables labelled `feature_0` … `feature_19` that simulate transaction attributes (amount, balance history, customer metadata, etc.).  Some features carry stronger signal for fraud and other risks, while others are redundant or noisy.
+* **Targets:**
+  * `fraud_label` – a binary indicator (0/1) describing whether the transaction is fraudulent.
+  * `chargeback_label` – a binary indicator representing the risk that the transaction will result in a chargeback.  It is correlated with, but not identical to, the fraud label.
+  * `takeover_label` – a binary indicator flagging the probability of an account takeover event.
+  * `anomaly_score` – a continuous value between 0 and 1 representing the degree to which a transaction is unusual.  This score is derived from an unsupervised anomaly‑detection algorithm.
+
+The dataset is created using `data/generate_data.py`.  The script leverages scikit‑learn utilities (`make_classification`, `IsolationForest`) and basic random sampling to produce correlated risk outcomes.  Running the script writes a CSV file (`transactions.csv`) containing 10 000 synthetic transactions.
+
+## Getting started
+
+1. **Set up a Python environment.**  From the project root, create a virtual environment and install dependencies.  We recommend using [uv](https://github.com/astral-sh/uv) for faster dependency installation.  If `uv` is not installed, install it first with `pip install uv`.
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   # Install dependencies using uv (a drop‑in replacement for pip).  If you
+   # haven't installed uv yet, run `pip install uv` first.
+   uv pip install -r requirements.txt
+   ```
+
+2. **Generate the dataset.**  Create the `data/transactions.csv` file with 10 000 rows (you can adjust `--n_samples`):
+
+   ```bash
+   python data/generate_data.py --n_samples 10000 --output data/transactions.csv
+   ```
+
+3. **Explore the data.**  Run the EDA script to view basic statistics and plots (figures will be saved to the `plots/` directory):
+
+   ```bash
+   python src/eda.py --data data/transactions.csv
+   ```
+
+4. **Train the models.**  Fit predictive models for each risk indicator and log the experiments to an MLflow tracking server (running locally by default).  MLflow runs will be stored under the `mlruns` directory:
+
+   ```bash
+   python src/train.py --data data/transactions.csv
+   ```
+
+5. **View the MLflow UI (optional).**  To inspect experiment metrics and compare models, launch the MLflow tracking UI:
+
+   ```bash
+   mlflow ui
+   ```
+   Then visit `http://127.0.0.1:5000` in your browser.
+
+6. **Explore unsupervised techniques (optional but great for interviews).**  Unsupervised learning reveals hidden structure in the data and makes for compelling visualisations.  Run the unsupervised script to produce two‑dimensional embeddings of the transactions using PCA, MDS, Isomap, UMAP, t‑SNE, and Isolation Forest:
+
+   ```bash
+   python src/unsupervised.py --data data/transactions.csv --sample_size 3000
+   ```
+
+   The script will create a `plots/unsupervised/` directory containing a scatter plot for each technique.  These visuals can enrich your portfolio and illustrate your ability to apply manifold learning and anomaly detection.
+
+## Notes
+
+* The dataset generator and scripts are self‑contained—no external accounts or proprietary data are required.
+* The project uses only open‑source libraries (`pandas`, `numpy`, `scikit‑learn`, `matplotlib`, `mlflow`) that can be installed from PyPI.
+* All plots are created with `matplotlib` without specifying colors, complying with typical guidelines for reproducibility.
+* Feel free to extend this skeleton by adding feature engineering, hyper‑parameter tuning, additional models, or a notebook for interactive analysis.
+
+## Using this project for interview preparation
+
+While the primary goal of this project is to model multiple fraud‑related risks, its structure also lends itself well to demonstrating your data‑science and MLE skills in interviews:
+
+* **End‑to‑end pipeline:** The project covers data generation, EDA, supervised modelling, unsupervised learning, and experiment tracking with MLflow.  You can discuss each stage and the decisions made.
+* **Unsupervised techniques:** Include the plots created by `src/unsupervised.py` in your portfolio or slide deck to show you understand dimensionality‑reduction methods (PCA, MDS, Isomap, UMAP, t‑SNE) and anomaly detection (Isolation Forest).
+* **Experiment tracking:** Highlight how MLflow helps organise experiments, compare models, and manage model artefacts—a skill often valued in MLE roles.
+* **Extensibility:** Because the dataset is synthetic, you can tweak the generator to simulate different fraud scenarios or add additional features, then re‑run the pipeline to discuss how changes affect results.
+
+By combining supervised and unsupervised analysis in one coherent repository, you create a versatile showcase of machine‑learning competencies.
