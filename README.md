@@ -14,11 +14,14 @@ fraud_detection_project/
 ├── data/
 │   ├── transactions.csv         # generated dataset (not committed by default)
 │   └── generate_data.py         # script to create the synthetic dataset
+├── notebooks/
+│   ├── eda.ipynb                # exploratory data analysis script
+│   └── unsupervised.ipynb       # model training and MLflow logging
+├── plots/                       # directory with plot output for eda and dimensionality reduction
 ├── src/
-│   ├── eda.py                   # exploratory data analysis script
 │   └── train.py                 # model training and MLflow logging
-├── requirements.txt            # Python dependencies
-└── README.md                   # project overview and instructions
+├── requirements.txt             # Python dependencies
+└── README.md                    # project overview and instructions
 ```
 
 ## Dataset description
@@ -85,14 +88,3 @@ The dataset is created using `data/generate_data.py`.  The script leverages scik
 * The project uses only open‑source libraries (`pandas`, `numpy`, `scikit‑learn`, `matplotlib`, `mlflow`) that can be installed from PyPI.
 * All plots are created with `matplotlib` without specifying colors, complying with typical guidelines for reproducibility.
 * Feel free to extend this skeleton by adding feature engineering, hyper‑parameter tuning, additional models, or a notebook for interactive analysis.
-
-## Using this project for interview preparation
-
-While the primary goal of this project is to model multiple fraud‑related risks, its structure also lends itself well to demonstrating your data‑science and MLE skills in interviews:
-
-* **End‑to‑end pipeline:** The project covers data generation, EDA, supervised modelling, unsupervised learning, and experiment tracking with MLflow.  You can discuss each stage and the decisions made.
-* **Unsupervised techniques:** Include the plots created by `src/unsupervised.py` in your portfolio or slide deck to show you understand dimensionality‑reduction methods (PCA, MDS, Isomap, UMAP, t‑SNE) and anomaly detection (Isolation Forest).
-* **Experiment tracking:** Highlight how MLflow helps organise experiments, compare models, and manage model artefacts—a skill often valued in MLE roles.
-* **Extensibility:** Because the dataset is synthetic, you can tweak the generator to simulate different fraud scenarios or add additional features, then re‑run the pipeline to discuss how changes affect results.
-
-By combining supervised and unsupervised analysis in one coherent repository, you create a versatile showcase of machine‑learning competencies.
