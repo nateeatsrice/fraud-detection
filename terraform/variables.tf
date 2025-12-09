@@ -1,0 +1,41 @@
+variable "aws_region" {
+  description = "AWS region to deploy resources in"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "bucket_name" {
+  description = "Name of the S3 bucket used to store artifacts"
+  type        = string
+  default     = "fraud-detection-artifacts"
+}
+
+variable "ecr_repo_name" {
+  description = "Name of the ECR repository for the API image"
+  type        = string
+  default     = "fraud-detection-app"
+}
+
+variable "ecs_cluster_name" {
+  description = "Name of the ECS cluster"
+  type        = string
+  default     = "fraud-detection-cluster"
+}
+
+variable "sqs_queue_name" {
+  description = "Name of the SQS queue"
+  type        = string
+  default     = "fraud-detection-events"
+}
+
+variable "lambda_role_name" {
+  description = "Name of the IAM role used by the Lambda function"
+  type        = string
+  default     = "fraud-detection-lambda-role"
+}
+
+variable "lambda_function_name" {
+  description = "Name of the Lambda function"
+  type        = string
+  default     = "fraud-detection-worker"
+}
