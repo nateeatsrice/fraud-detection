@@ -32,6 +32,15 @@ MANIFEST
 *.manifest
 *.spec
 
+# Terraform
+*.tfvars
+secrets.auto.tfvars
+*.secret
+.env.*
+*.auto.tfvars
+terraform.tfstate*
+.terraform/
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt

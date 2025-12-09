@@ -1,0 +1,96 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+env:
+  AWS_REGION: us-east-2
+
+  # Terraform variables (non-secret infra naming)
+  TF_VAR_aws_region: us-east-2
+  TF_VAR_bucket_name: fraud-detection-artifacts
+  TF_VAR_ecr_repo_name: fraud-detection-app
+  TF_VAR_ecs_cluster_name: fraud-detection-cluster
+  TF_VAR_sqs_queue_name: fraud-detection-events
+  TF_VAR_lambda_role_name: fraud-detection-lambda-role
+  TF_VAR_lambda_function_name: fraud-detection-worker
+
+  # Local convenience envs for this workflow
+  ECR_REPOSITORY: fraud-detection-app
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    name: Build, Push, and Deploy
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: fraud-detection-deploy
+      cancel-in-progress: true
+
+    permissions:
+      contents: read
+      id-token: write  # if using role-based auth
+      deployments: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Configure AWS credentials
+        # Option A: Access key-based auth
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+        # Option B (recommended in real prod): role-based auth
+        # uses: aws-actions/configure-aws-credentials@v4
+        # with:
+        #   role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        #   aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          echo "Building image: ${IMAGE_URI}"
+          docker build -t "${IMAGE_URI}" .
+          docker push "${IMAGE_URI}"
+          echo "IMAGE_URI=${IMAGE_URI}" >> $GITHUB_ENV
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate
+
+      # Optional: Plan step for review in logs
+      - name: Terraform plan
+        working-directory: terraform
+        run: terraform plan -input=false
+
+      - name: Terraform apply
+        if: github.ref == 'refs/heads/main'
+        working-directory: terraform
+        run: terraform apply -auto-approve -input=false
