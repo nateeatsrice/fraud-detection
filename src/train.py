@@ -19,6 +19,7 @@ the `mlruns` directory in the project root by default.
 
 from __future__ import annotations
 
+import os
 import argparse
 from pathlib import Path
 from typing import Iterable, List
@@ -50,6 +51,9 @@ try:
 except ImportError:
     lgb = None  # type: ignore
 
+BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2024"
+# Set MLflow tracking URI to S3
+mlflow.set_tracking_uri(f"s3://{BUCKET_NAME}/mlflow")
 
 def get_classifier(model_name: str, random_state: int) -> object:
     """Factory function to instantiate a classifier based on name.

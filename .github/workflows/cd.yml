@@ -3,14 +3,14 @@ name: Continuous Deployment
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: {}
+
 
 env:
   AWS_REGION: us-east-2
 
   # Terraform variables (non-secret infra naming)
   TF_VAR_aws_region: us-east-2
-  TF_VAR_bucket_name: fraud-detection-artifacts
+  TF_VAR_bucket_name: fraud-detection-artifacts-nateeatsrice-2025
   TF_VAR_ecr_repo_name: fraud-detection-app
   TF_VAR_ecs_cluster_name: fraud-detection-cluster
   TF_VAR_sqs_queue_name: fraud-detection-events
