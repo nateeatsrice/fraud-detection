@@ -95,8 +95,8 @@ resource "aws_lambda_function" "worker" {
   role          = aws_iam_role.lambda_exec.arn
   runtime       = "python3.12"
   handler       = "handler.lambda_handler"
-  filename      = "lambda_function_payload.zip"
-  source_code_hash = filebase64sha256("lambda_function_payload.zip")
+  filename      = "../lambda_function_payload.zip"
+  source_code_hash = filebase64sha256("../lambda_function_payload.zip")
   timeout       = 30
 }
 
