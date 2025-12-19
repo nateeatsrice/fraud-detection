@@ -9,7 +9,7 @@ help:
 	@echo "  setup           Create virtual environment with uv"
 	@echo "  install         Install Python dependencies with uv"
 	@echo "  test            Run unit and integration tests using pytest"
-	@echo "  docker-build    Build the Docker image for the API service"
+	@echo "  docker-build    Build the Docker image for the API service and show detailed output"
 	@echo "  docker-run      Run the Docker image locally on port 8000"
 	@echo "  terraform-init  Initialise Terraform in the terraform/ directory"
 	@echo "  terraform-apply Apply the Terraform configuration"
@@ -27,7 +27,7 @@ test:
 	uv run pytest -q
 
 docker-build:
-	docker build -t fraud-detection-app:latest .
+	docker build --progress=plain -t fraud-detection-app:latest .
 
 docker-run:
 	docker run -p 8000:8000 fraud-detection-app
