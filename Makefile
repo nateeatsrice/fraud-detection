@@ -21,13 +21,13 @@ setup:
 	@echo "Virtual environment created. Activate with: source .venv/bin/activate"
 
 install:
-	uv pip install -r requirements.txt
+	uv sync
 
 test:
 	uv run pytest -q
 
 docker-build:
-	docker build -t fraud-detection-app .
+	docker build -t fraud-detection-app:latest .
 
 docker-run:
 	docker run -p 8000:8000 fraud-detection-app
