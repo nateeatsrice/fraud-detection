@@ -51,7 +51,7 @@ try:
 except ImportError:
     lgb = None  # type: ignore
 
-BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2024"
+BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2025"
 # Set MLflow tracking URI to S3
 mlflow.set_tracking_uri(f"s3://{BUCKET_NAME}/mlflow")
 
