@@ -11,17 +11,47 @@ This project demonstrates a complete workflow for detecting and managing multipl
 
 ```
 fraud_detection_project/
-├── data/
-│   ├── transactions.csv         # generated dataset (not committed by default)
-│   └── generate_data.py         # script to create the synthetic dataset
-├── notebooks/
-│   ├── eda.ipynb                # exploratory data analysis script
-│   └── unsupervised.ipynb       # model training and MLflow logging
-├── plots/                       # directory with plot output for eda and dimensionality reduction
-├── src/
-│   └── train.py                 # model training and MLflow logging
-├── requirements.txt             # Python dependencies
-└── README.md                    # project overview and instructions
+├── .github/workflows
+│   ├── cd.yml                    # automated containerization, infrastructure and deployment
+│   └── ci.yml                    # automated unit and integration testing with linting and formatting checks
+├── .venv
+├── Dockerfile                    # everything you need for image creation
+├── Makefile                      # simplify your command line
+├── README.md                     # project overview and instructions
+├── app
+│   ├── __pycache__
+│   └── main.py                   # FastAPI webapp  
+├── data
+│   ├── generate_data.py          # script to create the synthetic dataset
+│   └── transactions.csv          # generated dataset (not committed by default)
+├── lambda
+│   ├── __pycache__
+│   └── handler.py
+├── lambda_function_payload.zip
+├── mlflow.db
+├── mlruns
+├── monitoring
+│   ├── __pycache__
+│   └── monitor.py                # data and concept drift monitoring
+├── notebooks
+│   ├── eda.ipynb                 # exploratory data analysis script
+│   └── unsupervised.ipynb        # dimensionality reduction techniques
+├── orchestration
+│   ├── __pycache__
+│   └── flow.py                   # ml orchestration with prefect
+├── plots                         # directory with plot output for eda and dimensionality reduction
+├── pyproject.toml                # uv dependencies
+├── requirements.txt    
+├── src
+│   ├── __pycache__
+│   └── train.py                  # automated training file for fruad detection using XGboost and ensemble methods
+├── terraform                     # infrastructure as code
+├── tests                         # unit and integration tests
+│   ├── __pycache__
+│   ├── test_app.py
+│   ├── test_integration.py
+│   └── test_train.py
+└── uv.lock
 ```
 
 ## Dataset description
