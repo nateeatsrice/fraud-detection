@@ -2,7 +2,7 @@ name: Continuous Deployment
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ] # every merge to main triggers deployment
 
 
 env:
@@ -19,7 +19,7 @@ env:
 
   # Local convenience envs for this workflow
   ECR_REPOSITORY: fraud-detection-app
-  IMAGE_TAG: ${{ github.sha }}
+  IMAGE_TAG: ${{ github.sha }} # use commit hash as image tag
 
 jobs:
   deploy:
@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 #get code from repo
 
       - name: Set up Python
         uses: actions/setup-python@v5

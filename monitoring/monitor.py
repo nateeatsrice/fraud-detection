@@ -57,8 +57,13 @@ def generate_monitoring_report(
         Path to the generated HTML report, or None if Evidently is not installed.
     """
     if Report is None:
-        raise ImportError("Evidently is not installed; cannot generate monitoring reports")
-
+        import warnings
+        warnings.warn(
+            "Evidently is not installed or import failed. Skipping monitoring report generation. "
+            "Install with: pip install evidently>=0.4.9"
+        )
+        return None  # ← CHANGED: Return None instead of raising error
+        
     current_data = pd.read_csv(data_path)
     if baseline_path and baseline_path.exists():
         reference_data = pd.read_csv(baseline_path)

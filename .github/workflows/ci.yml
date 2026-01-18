@@ -2,29 +2,30 @@ name: Continuous Integration
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ] # Runs when you push to main
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main" ] # Runs when you create/update a PR
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+  build-and-test: 
+    runs-on: ubuntu-latest # use the latest Ubuntu runner on Githubs servers
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 #downloads your repository code to the runner
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4 #install python 3.12
         with:
           python-version: '3.12'
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: uv sync --frozen
 
       - name: Run unit and integration tests
-        run: pytest -q
+        run: uv run pytest -q
 
       - name: Check Terraform formatting
         run: terraform fmt -check -recursive

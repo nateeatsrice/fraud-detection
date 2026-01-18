@@ -52,8 +52,9 @@ except ImportError:
     lgb = None  # type: ignore
 
 BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2025"
-# Set MLflow tracking URI to S3
-mlflow.set_tracking_uri(f"s3://{BUCKET_NAME}/mlflow")
+# Set MLflow tracking URI to S3 for now we will keep local
+# mlflow.set_tracking_uri(f"s3://{BUCKET_NAME}/mlflow")
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
 def get_classifier(model_name: str, random_state: int) -> object:
     """Factory function to instantiate a classifier based on name.
@@ -232,7 +233,7 @@ def train_and_log_regression(
         model.fit(X_train, y_train)
         preds = model.predict(X_test)
         mse = mean_squared_error(y_test, preds)
-        rmse = mean_squared_error(y_test, preds, squared=False)
+        rmse = np.sqrt(mean_squared_error(y_test, preds))
         r2 = r2_score(y_test, preds)
         mlflow.log_metric("mse", mse)
         mlflow.log_metric("rmse", rmse)
