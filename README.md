@@ -112,6 +112,42 @@ The dataset is created using `data/generate_data.py`.  The script leverages scik
 
    The script will create a `plots/unsupervised/` directory containing a scatter plot for each technique.  These visuals can enrich your portfolio and illustrate your ability to apply manifold learning and anomaly detection.
 
+## Lambda Function
+
+The project includes an AWS Lambda function for background processing of fraud detection tasks.
+
+### Building the Lambda Package
+```bash
+# Package Lambda function into deployment zip
+make lambda-package
+
+# Clean Lambda package
+make lambda-clean
+```
+
+### Lambda Structure
+```
+lambda/
+├── __init__.py         # Package marker
+└── handler.py          # Lambda function entry point
+```
+
+The Lambda function is packaged as `lambda_function_payload.zip` and deployed via Terraform.
+
+### Deploying Lambda
+
+The Lambda function is automatically deployed when running:
+```bash
+cd terraform
+terraform apply
+```
+
+The function is configured to:
+- Process messages from SQS queue (when configured)
+- Execute with Python 3.12 runtime
+- Timeout after 30 seconds
+- Use IAM role with S3 and SQS permissions
+
 ## Notes
 
 * The dataset generator and scripts are self‑contained—no external accounts or proprietary data are required.

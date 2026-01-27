@@ -24,6 +24,18 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      - name: Package Lambda function
+        run: make lambda-package
+
+      - name: Verify Lambda package
+        run: |
+          if [ ! -f lambda_function_payload.zip ]; then
+            echo "❌ Lambda package not created"
+            exit 1
+          fi
+          echo "✅ Lambda package exists"
+          unzip -l lambda_function_payload.zip  
+
       - name: Run unit and integration tests
         run: uv run pytest -q
 
