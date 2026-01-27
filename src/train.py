@@ -52,9 +52,23 @@ except ImportError:
     lgb = None  # type: ignore
 
 BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2025"
-# Set MLflow tracking URI to S3 for now we will keep local
-# mlflow.set_tracking_uri(f"s3://{BUCKET_NAME}/mlflow")
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+
+# Configure MLflow for local/CI testing
+# Use environment variables or default to local filesystem
+PROJECT_ROOT = Path(__file__).parent.parent
+MLRUNS_DIR = PROJECT_ROOT / "mlruns"
+MLRUNS_DIR.mkdir(exist_ok=True)
+
+# Set tracking URI - use file:// protocol with absolute path to avoid /workspaces issues
+TRACKING_URI = os.environ.get(
+    "MLFLOW_TRACKING_URI",
+    f"file://{MLRUNS_DIR.absolute()}"
+)
+mlflow.set_tracking_uri(TRACKING_URI)
+
+# Explicitly set artifact root to prevent MLflow from inferring /workspaces path
+if "MLFLOW_ARTIFACT_ROOT" not in os.environ:
+    os.environ["MLFLOW_ARTIFACT_ROOT"] = str(MLRUNS_DIR.absolute())
 
 def get_classifier(model_name: str, random_state: int) -> object:
     """Factory function to instantiate a classifier based on name.
