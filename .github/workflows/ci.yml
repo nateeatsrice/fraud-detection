@@ -39,6 +39,11 @@ jobs:
       - name: Run unit and integration tests
         run: uv run pytest -q
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
       - name: Check Terraform formatting
         run: terraform fmt -check -recursive
 
