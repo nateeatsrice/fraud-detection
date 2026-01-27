@@ -17,7 +17,7 @@ resource "aws_s3_bucket" "artifacts" {
   bucket        = var.bucket_name
   force_destroy = true
   tags = {
-    Project = "fraud-detection"
+    Project     = "fraud-detection"
     Environment = "dev"
   }
 }
@@ -43,7 +43,7 @@ resource "aws_ecs_cluster" "cluster" {
 
 # SQS queue for asynchronous event handling (e.g. background training jobs)
 resource "aws_sqs_queue" "events" {
-  name = var.sqs_queue_name
+  name                       = var.sqs_queue_name
   visibility_timeout_seconds = 60
 }
 
@@ -65,8 +65,8 @@ resource "aws_iam_role" "lambda_exec" {
 
 # Basic inline policy allowing the Lambda to write logs and access SQS and S3
 resource "aws_iam_role_policy" "lambda_policy" {
-  name   = "lambda_policy"
-  role   = aws_iam_role.lambda_exec.id
+  name = "lambda_policy"
+  role = aws_iam_role.lambda_exec.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -91,13 +91,13 @@ resource "aws_iam_role_policy" "lambda_policy" {
 
 # Placeholder Lambda function for background processing
 resource "aws_lambda_function" "worker" {
-  function_name = var.lambda_function_name
-  role          = aws_iam_role.lambda_exec.arn
-  runtime       = "python3.12"
-  handler       = "handler.lambda_handler"
-  filename      = "../lambda_function_payload.zip"
+  function_name    = var.lambda_function_name
+  role             = aws_iam_role.lambda_exec.arn
+  runtime          = "python3.12"
+  handler          = "handler.lambda_handler"
+  filename         = "../lambda_function_payload.zip"
   source_code_hash = filebase64sha256("../lambda_function_payload.zip")
-  timeout       = 30
+  timeout          = 30
 }
 
 # CloudWatch log group for the Lambda function
