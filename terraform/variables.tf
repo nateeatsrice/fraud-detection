@@ -1,3 +1,10 @@
+# =============================================================================
+# VARIABLES
+# =============================================================================
+# All configurable inputs for the infrastructure.
+# Override via terraform.tfvars, environment variables (TF_VAR_*), or CLI.
+# =============================================================================
+
 variable "aws_region" {
   description = "AWS region to deploy resources in"
   type        = string
