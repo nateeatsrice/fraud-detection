@@ -31,7 +31,7 @@ WORKDIR /app
 # ----------------------------------------------------------------------------
 # Copy dependency specification files
 # ----------------------------------------------------------------------------
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 
 # ----------------------------------------------------------------------------
 # Install Python dependencies with uv sync

@@ -43,7 +43,6 @@ terraform/
 *.tfvars
 
 # Documentation
-README.md
 docs/
 
 # CI/CD
