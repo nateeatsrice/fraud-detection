@@ -46,3 +46,9 @@ variable "lambda_function_name" {
   type        = string
   default     = "fraud-detection-worker"
 }
+
+variable "image_tag" {
+  description = "Docker image tag to deploy"
+  type        = string
+  default     = "latest"  # Fallback for local testing
+}
