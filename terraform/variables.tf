@@ -50,5 +50,5 @@ variable "lambda_function_name" {
 variable "image_tag" {
   description = "Docker image tag to deploy"
   type        = string
-  default     = "latest"  # Fallback for local testing
+  default     = "latest" # Fallback for local testing
 }
