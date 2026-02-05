@@ -28,7 +28,7 @@ jobs:
     environment: production
     concurrency:
       group: fraud-detection-deploy
-      cancel-in-progress: true
+      cancel-in-progress: false
 
     permissions:
       contents: read
