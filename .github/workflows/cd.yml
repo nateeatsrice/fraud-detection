@@ -19,7 +19,6 @@ env:
 
   # Local convenience envs for this workflow
   ECR_REPOSITORY: fraud-detection-app
-  IMAGE_TAG: ${{ github.sha }} # use commit hash as image tag
 
 jobs:
   deploy:
@@ -78,11 +77,9 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-          echo "Building image: ${IMAGE_URI}"
-          docker build -t "${IMAGE_URI}" .
-          docker push "${IMAGE_URI}"
-          echo "IMAGE_URI=${IMAGE_URI}" >> $GITHUB_ENV
+          IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${{ github.sha }}"
+          docker build -t "${IMAGE}" .
+          docker push "${IMAGE}"
 
       - name: Terraform init
         working-directory: terraform
@@ -100,4 +97,4 @@ jobs:
       - name: Terraform apply
         if: github.ref == 'refs/heads/main'
         working-directory: terraform
-        run: terraform apply -auto-approve -input=false
+        run: terraform apply -auto-approve -var="image_tag=${{ github.sha }}"
