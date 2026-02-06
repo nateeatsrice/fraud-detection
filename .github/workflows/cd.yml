@@ -89,7 +89,6 @@ jobs:
         working-directory: terraform
         run: terraform validate
 
-      # Optional: Plan step for review in logs
       - name: Terraform plan
         working-directory: terraform
         run: terraform plan -input=false
@@ -98,3 +97,22 @@ jobs:
         if: github.ref == 'refs/heads/main'
         working-directory: terraform
         run: terraform apply -auto-approve -var="image_tag=${{ github.sha }}"
+
+      - name: Wait for ECS deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster fraud-detection-cluster \
+            --services fraud-detection-service \
+            --region us-east-2
+            
+      - name: Verify application health
+        run: |
+          ALB_URL=$(terraform output -raw app_url)
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${ALB_URL}")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Deployment healthy"
+          else
+            echo "❌ Health check failed: HTTP ${HTTP_CODE}"
+            exit 1
+          fi
