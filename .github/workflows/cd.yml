@@ -122,7 +122,7 @@ jobs:
             fi
             
             echo "Attempt ${i}: HTTP ${HTTP_CODE}, retrying in 10s..."
-            sleep 10                         # ← Wait 10 seconds before retry
+            sleep 5                         # ← Wait 5 seconds before retry
           done
           
           echo "❌ Health check failed after 5 attempts"
