@@ -106,13 +106,24 @@ jobs:
             --region us-east-2
             
       - name: Verify application health
+        working-directory: terraform
         run: |
           ALB_URL=$(terraform output -raw app_url)
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${ALB_URL}")
+          echo "🔍 Checking health at ${ALB_URL}..."
           
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Deployment healthy"
-          else
-            echo "❌ Health check failed: HTTP ${HTTP_CODE}"
-            exit 1
-          fi
+          # Retry a few times (ALB might need a moment)
+          for i in 1 2 3 4 5; do            # ← Loops 5 times
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${ALB_URL}" || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Deployment healthy! (HTTP ${HTTP_CODE})"
+              echo "🎉 Application live at: ${ALB_URL}"
+              exit 0                         # ← Success, exit loop
+            fi
+            
+            echo "Attempt ${i}: HTTP ${HTTP_CODE}, retrying in 10s..."
+            sleep 10                         # ← Wait 10 seconds before retry
+          done
+          
+          echo "❌ Health check failed after 5 attempts"
+          exit 1   
