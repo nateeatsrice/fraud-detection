@@ -39,19 +39,10 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
 )
+import xgboost as xgb
+import lightgbm as lgb
 
-# Optional imports; these libraries are specified in requirements.txt
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None  # type: ignore
-
-try:
-    import lightgbm as lgb
-except ImportError:
-    lgb = None  # type: ignore
-
-BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2025"
+BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2026"
 
 # Configure MLflow for local/CI testing
 # Use environment variables or default to local filesystem

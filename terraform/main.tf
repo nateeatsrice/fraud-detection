@@ -9,8 +9,8 @@
 #   - ECS Fargate service running your FastAPI app
 #   - ECR repository for Docker images
 #   - S3 bucket for artifacts
-#   - SQS queue for async processing
-#   - Lambda function for background work
+#   - SQS queue for async processing (for future use)
+#   - Lambda function for background work (for future use)
 # =============================================================================
 
 terraform {
