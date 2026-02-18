@@ -14,7 +14,7 @@ variable "aws_region" {
 variable "bucket_name" {
   description = "Name of the S3 bucket used to store artifacts"
   type        = string
-  default     = "fraud-detection-artifacts-nateeatsrice-2025"
+  default     = "fraud-detection-artifacts-nateeatsrice-2026"
 }
 
 variable "ecr_repo_name" {
