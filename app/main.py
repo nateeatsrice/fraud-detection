@@ -37,7 +37,7 @@ class PredictionRequest(BaseModel):
     features: List[float] = Field(..., description="List of 20 numerical feature values")
     model_name: str = Field(
         "RandomForest",
-        description="Name of the model to use (RandomForest, LogisticRegression, XGBoost, LightGBM)",
+        description="Name of the model to use (RandomForest, LogisticRegression, XGBoost)",
     )
 
     @validator("features")

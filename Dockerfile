@@ -51,7 +51,7 @@ FROM python:3.12-slim
 # These are needed by compiled Python packages at runtime
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        # OpenMP library - required by LightGBM and XGBoost
+        # OpenMP library - required by XGBoost
         libgomp1 \
         # Optional: curl for healthchecks
         curl \

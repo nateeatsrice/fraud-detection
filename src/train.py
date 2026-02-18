@@ -6,15 +6,15 @@ subsets, trains several machine‑learning models for each of the target variabl
 (`fraud_label`, `chargeback_label`, `takeover_label`, `anomaly_score`),
 evaluates them on a held‑out test set, and logs the experiments using
 MLflow.  In addition to the original RandomForest and LogisticRegression
-classifiers, it now supports gradient boosting models via
-**XGBoost** and **LightGBM** for both classification and regression tasks.
+classifiers, it supports gradient boosting via **XGBoost** for both
+classification and regression tasks.
 
 Usage:
     python train.py --data data/transactions.csv
 
 You can customise the test split, random seed and list of models via
 command‑line arguments.  All outputs (artifacts and metrics) are stored in
-the `mlruns` directory in the project root by default.
+a local SQLite‑backed MLflow database by default.
 """
 
 from __future__ import annotations
@@ -39,27 +39,39 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
 )
-import xgboost as xgb
-import lightgbm as lgb
 
-BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2026"
+# Optional imports; these libraries are specified in requirements.txt
+try:
+    import xgboost as xgb
+except ImportError:
+    xgb = None  # type: ignore
 
-# Configure MLflow for local/CI testing
-# Use environment variables or default to local filesystem
+BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2025"
+
+# ---------------------------------------------------------------------------
+# MLflow configuration
+# ---------------------------------------------------------------------------
+# Use a SQLite database instead of the deprecated filesystem backend.
+# The file:// (FileStore) backend is deprecated as of February 2026.
+# See: https://github.com/mlflow/mlflow/issues/18534
+# ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent.parent
-MLRUNS_DIR = PROJECT_ROOT / "mlruns"
-MLRUNS_DIR.mkdir(exist_ok=True)
+MLFLOW_DB = PROJECT_ROOT / "mlflow.db"
 
-# Set tracking URI - use file:// protocol with absolute path to avoid /workspaces issues
 TRACKING_URI = os.environ.get(
     "MLFLOW_TRACKING_URI",
-    f"file://{MLRUNS_DIR.absolute()}"
+    f"sqlite:///{MLFLOW_DB.absolute()}",
 )
 mlflow.set_tracking_uri(TRACKING_URI)
 
-# Explicitly set artifact root to prevent MLflow from inferring /workspaces path
+# Default artifact location — still the local filesystem, but MLflow metadata
+# (experiments, runs, metrics, params) now lives in the SQLite database.
+ARTIFACT_ROOT = PROJECT_ROOT / "mlartifacts"
+ARTIFACT_ROOT.mkdir(exist_ok=True)
+
 if "MLFLOW_ARTIFACT_ROOT" not in os.environ:
-    os.environ["MLFLOW_ARTIFACT_ROOT"] = str(MLRUNS_DIR.absolute())
+    os.environ["MLFLOW_ARTIFACT_ROOT"] = str(ARTIFACT_ROOT.absolute())
+
 
 def get_classifier(model_name: str, random_state: int) -> object:
     """Factory function to instantiate a classifier based on name.
@@ -67,7 +79,7 @@ def get_classifier(model_name: str, random_state: int) -> object:
     Parameters
     ----------
     model_name : str
-        One of 'RandomForest', 'LogisticRegression', 'XGBoost' or 'LightGBM'.
+        One of 'RandomForest', 'LogisticRegression', or 'XGBoost'.
     random_state : int
         Seed for reproducibility.
 
@@ -98,15 +110,6 @@ def get_classifier(model_name: str, random_state: int) -> object:
             random_state=random_state,
             eval_metric="logloss",
         )
-    if model_name == "LightGBM":
-        if lgb is None:
-            raise ImportError("lightgbm is not installed; please add it to requirements.txt")
-        return lgb.LGBMClassifier(
-            n_estimators=200,
-            learning_rate=0.1,
-            num_leaves=31,
-            random_state=random_state,
-        )
     raise ValueError(f"Unknown model_name: {model_name}")
 
 
@@ -116,8 +119,8 @@ def get_regressor(model_name: str, random_state: int) -> object:
     Parameters
     ----------
     model_name : str
-        One of 'RandomForest', 'XGBoost' or 'LightGBM'.  LogisticRegression is
-        excluded because it is not appropriate for regression tasks.
+        One of 'RandomForest' or 'XGBoost'.  LogisticRegression is excluded
+        because it is not appropriate for regression tasks.
     random_state : int
         Seed for reproducibility.
 
@@ -137,15 +140,6 @@ def get_regressor(model_name: str, random_state: int) -> object:
             learning_rate=0.1,
             subsample=0.8,
             colsample_bytree=0.8,
-            random_state=random_state,
-        )
-    if model_name == "LightGBM":
-        if lgb is None:
-            raise ImportError("lightgbm is not installed; please add it to requirements.txt")
-        return lgb.LGBMRegressor(
-            n_estimators=200,
-            learning_rate=0.1,
-            num_leaves=31,
             random_state=random_state,
         )
     raise ValueError(f"Unknown model_name: {model_name}")
@@ -170,7 +164,7 @@ def train_and_log_classification(
         Target vectors for training and testing.
     model_name : str
         Name of the model to train ('RandomForest', 'LogisticRegression',
-        'XGBoost' or 'LightGBM').
+        or 'XGBoost').
     target_name : str
         Name of the target variable (used for run naming).
     random_state : int
@@ -203,8 +197,8 @@ def train_and_log_classification(
         mlflow.log_metric("f1_score", f1)
         if not np.isnan(roc_auc):
             mlflow.log_metric("roc_auc", roc_auc)
-        # Log model artifact
-        mlflow.sklearn.log_model(model, f"model_{target_name}_{model_name}")
+        # Log model artifact (use name= keyword; artifact_path is deprecated)
+        mlflow.sklearn.log_model(model, name=f"model_{target_name}_{model_name}")
 
 
 def train_and_log_regression(
@@ -225,7 +219,7 @@ def train_and_log_regression(
     y_train, y_test : array-like
         Target vectors for training and testing.
     model_name : str
-        Name of the model to train ('RandomForest', 'XGBoost', 'LightGBM').
+        Name of the model to train ('RandomForest' or 'XGBoost').
     target_name : str
         Name of the target variable (used for run naming).
     random_state : int
@@ -243,7 +237,8 @@ def train_and_log_regression(
         mlflow.log_metric("mse", mse)
         mlflow.log_metric("rmse", rmse)
         mlflow.log_metric("r2", r2)
-        mlflow.sklearn.log_model(model, f"model_{target_name}_{model_name}")
+        # Use name= keyword; artifact_path is deprecated
+        mlflow.sklearn.log_model(model, name=f"model_{target_name}_{model_name}")
 
 
 def parse_models_arg(models_str: str) -> List[str]:
@@ -251,8 +246,8 @@ def parse_models_arg(models_str: str) -> List[str]:
 
     If the argument is empty or 'all', return all supported models.
 
-    Supported classification models: RandomForest, LogisticRegression, XGBoost, LightGBM
-    Supported regression models: RandomForest, XGBoost, LightGBM
+    Supported classification models: RandomForest, LogisticRegression, XGBoost
+    Supported regression models: RandomForest, XGBoost
 
     Parameters
     ----------
@@ -263,7 +258,7 @@ def parse_models_arg(models_str: str) -> List[str]:
     list of str
         Normalised model names.
     """
-    default_models = ["RandomForest", "LogisticRegression", "XGBoost", "LightGBM"]
+    default_models = ["RandomForest", "LogisticRegression", "XGBoost"]
     if not models_str or models_str.lower() == "all":
         return default_models
     models = [m.strip() for m in models_str.split(",") if m.strip()]
@@ -275,8 +270,6 @@ def parse_models_arg(models_str: str) -> List[str]:
             normalised.append("LogisticRegression")
         elif m.lower() in {"xgboost", "xgb"}:
             normalised.append("XGBoost")
-        elif m.lower() in {"lightgbm", "lgbm", "lgb"}:
-            normalised.append("LightGBM")
         else:
             raise ValueError(f"Unknown model specified: {m}")
     return normalised
@@ -310,7 +303,7 @@ def main() -> None:
         default="all",
         help=(
             "Comma‑separated list of models to train.  Choices: RandomForest, "
-            "LogisticRegression, XGBoost, LightGBM.  Use 'all' to train all models."
+            "LogisticRegression, XGBoost.  Use 'all' to train all models."
         ),
     )
     args = parser.parse_args()
@@ -353,7 +346,6 @@ def main() -> None:
         y_test = y[test_indices]
         if task_type == "classification":
             for model_name in models_to_train:
-                # Skip LogisticRegression for regression tasks
                 train_and_log_classification(
                     X_train,
                     X_test,
@@ -378,7 +370,7 @@ def main() -> None:
                     random_state=args.random_state,
                 )
 
-    print("Training complete.  Runs logged to the 'mlruns' directory.")
+    print("Training complete.  Runs logged to MLflow.")
 
 
 if __name__ == "__main__":
