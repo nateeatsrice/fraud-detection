@@ -13,8 +13,18 @@ Usage:
     python train.py --data data/transactions.csv
 
 You can customise the test split, random seed and list of models via
-command‑line arguments.  All outputs (artifacts and metrics) are stored in
-a local SQLite‑backed MLflow database by default.
+command‑line arguments.
+
+MLflow Configuration:
+    - Tracking store (metadata): Local SQLite database (mlflow.db) with
+      optional sync to S3 for persistence across environments.
+    - Artifact store (models, plots): S3 bucket shared across all projects,
+      namespaced by project prefix.
+
+    Override via environment variables:
+        MLFLOW_TRACKING_URI   – e.g. sqlite:///mlflow.db (default)
+        MLFLOW_S3_BUCKET      – e.g. nateeatsrice-mlflow-experiments
+        MLFLOW_S3_PREFIX      – e.g. fraud-detection (default)
 """
 
 from __future__ import annotations
@@ -39,38 +49,78 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
 )
-
-# Optional imports; these libraries are specified in requirements.txt
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None  # type: ignore
-
-BUCKET_NAME = "fraud-detection-artifacts-nateeatsrice-2025"
+import xgboost as xgb
 
 # ---------------------------------------------------------------------------
 # MLflow configuration
 # ---------------------------------------------------------------------------
-# Use a SQLite database instead of the deprecated filesystem backend.
-# The file:// (FileStore) backend is deprecated as of February 2026.
-# See: https://github.com/mlflow/mlflow/issues/18534
+# Two storage concerns:
+#   1. Tracking store  → WHERE metadata lives (params, metrics, run info)
+#   2. Artifact store  → WHERE heavy files live (serialized models, plots)
+#
+# Tracking store: SQLite downloaded from S# and reuploaded each run. Cheap and simple.
+# Artifact store: S3 bucket shared across all projects, namespaced by prefix.
+#
+# The S3 bucket is NOT managed by Terraform — it's long-lived foundation
+# infrastructure that survives `terraform destroy`.
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent.parent
 MLFLOW_DB = PROJECT_ROOT / "mlflow.db"
 
+# --- Tracking store (metadata) ---
 TRACKING_URI = os.environ.get(
     "MLFLOW_TRACKING_URI",
     f"sqlite:///{MLFLOW_DB.absolute()}",
 )
 mlflow.set_tracking_uri(TRACKING_URI)
 
-# Default artifact location — still the local filesystem, but MLflow metadata
-# (experiments, runs, metrics, params) now lives in the SQLite database.
-ARTIFACT_ROOT = PROJECT_ROOT / "mlartifacts"
-ARTIFACT_ROOT.mkdir(exist_ok=True)
+# --- Artifact store (models, plots) ---
+# S3 bucket name — shared across ALL your GitHub projects.
+# Each project gets its own prefix (subfolder) inside the bucket.
+MLFLOW_S3_BUCKET = os.environ.get(
+    "MLFLOW_S3_BUCKET",
+    "nateeatsrice-mlflow",
+)
 
-if "MLFLOW_ARTIFACT_ROOT" not in os.environ:
-    os.environ["MLFLOW_ARTIFACT_ROOT"] = str(ARTIFACT_ROOT.absolute())
+# Project-specific prefix — keeps fraud-detection artifacts separate from
+# your future projects in the same bucket.
+MLFLOW_S3_PREFIX = os.environ.get(
+    "MLFLOW_S3_PREFIX",
+    "fraud-detection",
+)
+
+# Construct the S3 artifact URI.
+# Final path example: s3://nateeatsrice-mlflow-experiments/fraud-detection/mlflow-artifacts
+S3_ARTIFACT_URI = f"s3://{MLFLOW_S3_BUCKET}/{MLFLOW_S3_PREFIX}/mlflow-artifacts"
+
+
+def _get_or_create_experiment(experiment_name: str) -> str:
+    """Get an existing MLflow experiment or create one with S3 artifact storage.
+
+    This helper exists because mlflow.set_experiment() alone does NOT update
+    the artifact_location of an existing experiment.  We need create_experiment()
+    to set the artifact_location on first creation.
+
+    Parameters
+    ----------
+    experiment_name : str
+        Name of the MLflow experiment.
+
+    Returns
+    -------
+    str
+        The experiment ID.
+    """
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+    if experiment is not None:
+        return experiment.experiment_id
+
+    # First time — create with the S3 artifact location
+    experiment_id = mlflow.create_experiment(
+        name=experiment_name,
+        artifact_location=ARTIFACT_LOCATION,
+    )
+    return experiment_id
 
 
 def get_classifier(model_name: str, random_state: int) -> object:
@@ -333,8 +383,9 @@ def main() -> None:
     X_train = X[train_indices]
     X_test = X[test_indices]
 
-    # Start (or create) the MLflow experiment
-    mlflow.set_experiment("fraud_detection_multivariate")
+    # Start (or create) the MLflow experiment with S3 artifact location
+    experiment_id = _get_or_create_experiment("fraud_detection_multivariate")
+    mlflow.set_experiment(experiment_id=experiment_id)
 
     # Determine which models to train
     models_to_train = parse_models_arg(args.models)
@@ -371,6 +422,7 @@ def main() -> None:
                 )
 
     print("Training complete.  Runs logged to MLflow.")
+    print(f"Artifacts stored at: {ARTIFACT_LOCATION}")
 
 
 if __name__ == "__main__":
