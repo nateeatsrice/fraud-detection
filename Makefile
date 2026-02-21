@@ -1,7 +1,7 @@
 # Makefile for common development tasks
 
 # This tells Make these are command names, not actual files. Without this, Make might get confused if you have a file named "test" or "install".
-.PHONY: help setup install test lint docker-build docker-run docker-push ecr-login terraform-init terraform-apply terraform-destroy prefect-flow clean lambda-package lambda-clean deploy
+.PHONY: help setup install test mlflow-push mlflow-pull mlflow-status mlflow-ui-local mlflow-ui-s3 lint docker-build docker-run docker-push ecr-login terraform-init terraform-apply terraform-destroy prefect-flow clean lambda-package lambda-clean deploy
 
 # Variables
 AWS_REGION := us-east-2
@@ -21,6 +21,13 @@ help:
 	@echo ""
 	@echo "  Testing:"
 	@echo "    test            Run unit and integration tests"
+	@echo ""
+	@echo "  MLflow:"
+	@echo "    mlflow-push     Upload local mlflow.db to S3"
+	@echo "    mlflow-pull     Download mlflow.db from S3 to local"
+	@echo "    mlflow-status   Status update on local and S3 mlflow.db files"
+	@echo "    mlflow-ui-local Launch MLflow UI from local mlflow.db on port 5000"
+	@echo "    mlflow-ui-s3    Launch MLflow UI from S3 mlflow.db on port 5000"
 	@echo ""
 	@echo "  Docker:"
 	@echo "    docker-build    Build the Docker image locally"
@@ -54,6 +61,22 @@ install:
 
 test:
 	uv run pytest -q
+
+mlflow-push:
+	./scripts/sync_mlflow.sh push
+
+mlflow-pull:
+	./scripts/sync_mlflow.sh pull
+
+mlflow-status:
+	./scripts/sync_mlflow.sh status
+
+mlflow-ui-local:
+	uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+
+mlflow-ui-s3:
+	aws s3 cp s3://nateeatsrice-mlflow/fraud-detection/mlflow.db ./mlflow.db
+	uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 
 docker-build:
 	docker build --progress=plain -t $(IMAGE_NAME):latest .
