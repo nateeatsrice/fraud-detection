@@ -16,14 +16,15 @@ You can customise the test split, random seed and list of models via
 command‑line arguments.
 
 MLflow Configuration:
-    - Tracking store (metadata): Local SQLite database (mlflow.db) with
-      optional sync to S3 for persistence across environments.
+    - Tracking store (metadata): Local SQLite database (mlflow.db) synced
+      to S3 before and after each run for persistence across environments.
     - Artifact store (models, plots): S3 bucket shared across all projects,
       namespaced by project prefix.
+    - Each model type gets its own MLflow experiment for clean metric comparison.
 
     Override via environment variables:
         MLFLOW_TRACKING_URI   – e.g. sqlite:///mlflow.db (default)
-        MLFLOW_S3_BUCKET      – e.g. nateeatsrice-mlflow-experiments
+        MLFLOW_S3_BUCKET      – e.g. nateeatsrice-mlflow (default)
         MLFLOW_S3_PREFIX      – e.g. fraud-detection (default)
 """
 
@@ -32,8 +33,9 @@ from __future__ import annotations
 import os
 import argparse
 from pathlib import Path
-from typing import Iterable, List
+from typing import List
 
+import boto3
 import numpy as np
 import pandas as pd
 import mlflow
@@ -58,10 +60,11 @@ import xgboost as xgb
 #   1. Tracking store  → WHERE metadata lives (params, metrics, run info)
 #   2. Artifact store  → WHERE heavy files live (serialized models, plots)
 #
-# Tracking store: SQLite downloaded from S# and reuploaded each run. Cheap and simple.
+# Tracking store: SQLite downloaded from S3 and reuploaded each run.
+#                 Cheap and simple — survives Codespace resets.
 # Artifact store: S3 bucket shared across all projects, namespaced by prefix.
 #
-# The S3 bucket is NOT managed by Terraform — it's long-lived foundation
+# The S3 bucket is NOT managed by Terraform — it is long-lived foundation
 # infrastructure that survives `terraform destroy`.
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -83,23 +86,63 @@ MLFLOW_S3_BUCKET = os.environ.get(
 )
 
 # Project-specific prefix — keeps fraud-detection artifacts separate from
-# your future projects in the same bucket.
+# future projects in the same bucket.
 MLFLOW_S3_PREFIX = os.environ.get(
     "MLFLOW_S3_PREFIX",
     "fraud-detection",
 )
 
 # Construct the S3 artifact URI.
-# Final path example: s3://nateeatsrice-mlflow-experiments/fraud-detection/mlflow-artifacts
-S3_ARTIFACT_URI = f"s3://{MLFLOW_S3_BUCKET}/{MLFLOW_S3_PREFIX}/mlflow-artifacts"
+# Final path example: s3://nateeatsrice-mlflow/fraud-detection/mlflow-artifacts
+ARTIFACT_LOCATION = f"s3://{MLFLOW_S3_BUCKET}/{MLFLOW_S3_PREFIX}/mlflow-artifacts"
 
+
+# ---------------------------------------------------------------------------
+# S3 sync helpers — infrastructure concern, kept separate from training logic
+# ---------------------------------------------------------------------------
+
+def _sync_db_from_s3() -> None:
+    """Pull mlflow.db from S3 before the run so we accumulate history.
+
+    On first run (no DB in S3 yet) this is a no-op and a fresh DB will be
+    created locally by MLflow, then pushed to S3 at the end of the run.
+    """
+    s3 = boto3.client("s3")
+    s3_key = f"{MLFLOW_S3_PREFIX}/mlflow.db"
+    try:
+        s3.download_file(MLFLOW_S3_BUCKET, s3_key, str(MLFLOW_DB))
+        print(f"[mlflow] Synced mlflow.db from s3://{MLFLOW_S3_BUCKET}/{s3_key}")
+    except s3.exceptions.NoSuchKey:
+        print("[mlflow] No existing mlflow.db found in S3 — starting fresh.")
+    except Exception as e:
+        print(f"[mlflow] WARNING: Could not sync mlflow.db from S3: {e}")
+        print("[mlflow] Proceeding with local DB (history may be incomplete).")
+
+
+def _push_db_to_s3() -> None:
+    """Push mlflow.db back to S3 after the run so history is persisted.
+
+    Called at the end of main() after all runs have been logged and closed.
+    """
+    if not MLFLOW_DB.exists():
+        print("[mlflow] WARNING: mlflow.db not found locally — nothing to push.")
+        return
+    s3 = boto3.client("s3")
+    s3_key = f"{MLFLOW_S3_PREFIX}/mlflow.db"
+    s3.upload_file(str(MLFLOW_DB), MLFLOW_S3_BUCKET, s3_key)
+    print(f"[mlflow] Pushed mlflow.db to s3://{MLFLOW_S3_BUCKET}/{s3_key}")
+
+
+# ---------------------------------------------------------------------------
+# MLflow experiment helpers
+# ---------------------------------------------------------------------------
 
 def _get_or_create_experiment(experiment_name: str) -> str:
     """Get an existing MLflow experiment or create one with S3 artifact storage.
 
-    This helper exists because mlflow.set_experiment() alone does NOT update
-    the artifact_location of an existing experiment.  We need create_experiment()
-    to set the artifact_location on first creation.
+    mlflow.set_experiment() alone does NOT update the artifact_location of an
+    existing experiment — it is baked in at creation time.  This helper uses
+    create_experiment() on first creation to lock in the S3 artifact root.
 
     Parameters
     ----------
@@ -115,13 +158,18 @@ def _get_or_create_experiment(experiment_name: str) -> str:
     if experiment is not None:
         return experiment.experiment_id
 
-    # First time — create with the S3 artifact location
+    # First time seeing this experiment — create with the S3 artifact location
     experiment_id = mlflow.create_experiment(
         name=experiment_name,
         artifact_location=ARTIFACT_LOCATION,
     )
+    print(f"[mlflow] Created experiment '{experiment_name}' → artifacts at {ARTIFACT_LOCATION}")
     return experiment_id
 
+
+# ---------------------------------------------------------------------------
+# Model factory functions
+# ---------------------------------------------------------------------------
 
 def get_classifier(model_name: str, random_state: int) -> object:
     """Factory function to instantiate a classifier based on name.
@@ -139,7 +187,11 @@ def get_classifier(model_name: str, random_state: int) -> object:
         An instantiated classifier ready to fit.
     """
     if model_name == "RandomForest":
-        return RandomForestClassifier(n_estimators=200, max_depth=None, random_state=random_state)
+        return RandomForestClassifier(
+            n_estimators=200,
+            max_depth=None,
+            random_state=random_state,
+        )
     if model_name == "LogisticRegression":
         return LogisticRegression(
             penalty="l2",
@@ -149,8 +201,6 @@ def get_classifier(model_name: str, random_state: int) -> object:
             n_jobs=-1,
         )
     if model_name == "XGBoost":
-        if xgb is None:
-            raise ImportError("xgboost is not installed; please add it to requirements.txt")
         return xgb.XGBClassifier(
             n_estimators=200,
             max_depth=6,
@@ -180,10 +230,12 @@ def get_regressor(model_name: str, random_state: int) -> object:
         An instantiated regressor ready to fit.
     """
     if model_name == "RandomForest":
-        return RandomForestRegressor(n_estimators=200, max_depth=None, random_state=random_state)
+        return RandomForestRegressor(
+            n_estimators=200,
+            max_depth=None,
+            random_state=random_state,
+        )
     if model_name == "XGBoost":
-        if xgb is None:
-            raise ImportError("xgboost is not installed; please add it to requirements.txt")
         return xgb.XGBRegressor(
             n_estimators=200,
             max_depth=6,
@@ -195,101 +247,120 @@ def get_regressor(model_name: str, random_state: int) -> object:
     raise ValueError(f"Unknown model_name: {model_name}")
 
 
+# ---------------------------------------------------------------------------
+# Training functions
+# ---------------------------------------------------------------------------
+
 def train_and_log_classification(
     X_train: np.ndarray,
     X_test: np.ndarray,
-    y_train: pd.Series,
-    y_test: pd.Series,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
     model_name: str,
     target_name: str,
     random_state: int = 42,
 ) -> None:
-    """Train a classifier and log the results to MLflow.
+    """Train a classifier and log the results to its own MLflow experiment.
+
+    Each model type gets a dedicated experiment (e.g. fraud_detection_RandomForest)
+    so metrics across different model families are never mixed in the same view.
 
     Parameters
     ----------
-    X_train, X_test : array-like
+    X_train, X_test : np.ndarray
         Feature matrices for training and testing.
-    y_train, y_test : array-like
+    y_train, y_test : np.ndarray
         Target vectors for training and testing.
     model_name : str
         Name of the model to train ('RandomForest', 'LogisticRegression',
         or 'XGBoost').
     target_name : str
-        Name of the target variable (used for run naming).
+        Name of the target variable — used as the run name within the experiment.
     random_state : int
         Random seed for reproducibility.
     """
     model = get_classifier(model_name, random_state)
 
-    with mlflow.start_run(run_name=f"{target_name}_{model_name}"):
-        # Log basic parameters
+    # Each model type lives in its own experiment
+    experiment_id = _get_or_create_experiment(f"fraud_detection_{model_name}")
+
+    with mlflow.start_run(experiment_id=experiment_id, run_name=target_name):
         mlflow.log_param("model_name", model_name)
         mlflow.log_param("target", target_name)
-        # Fit model
+
         model.fit(X_train, y_train)
-        # Predict
         preds = model.predict(X_test)
-        # Compute metrics
+
         acc = accuracy_score(y_test, preds)
         f1 = f1_score(y_test, preds)
+
         try:
-            # Some models (e.g. RandomForest) support predict_proba; handle gracefully
             probas = model.predict_proba(X_test)
-            if probas.ndim == 2 and probas.shape[1] > 1:
-                roc_auc = roc_auc_score(y_test, probas[:, 1])
-            else:
-                roc_auc = float("nan")
+            roc_auc = roc_auc_score(y_test, probas[:, 1]) if probas.shape[1] > 1 else float("nan")
         except Exception:
             roc_auc = float("nan")
-        # Log metrics
+
         mlflow.log_metric("accuracy", acc)
         mlflow.log_metric("f1_score", f1)
         if not np.isnan(roc_auc):
             mlflow.log_metric("roc_auc", roc_auc)
-        # Log model artifact (use name= keyword; artifact_path is deprecated)
+
         mlflow.sklearn.log_model(model, name=f"model_{target_name}_{model_name}")
 
 
 def train_and_log_regression(
     X_train: np.ndarray,
     X_test: np.ndarray,
-    y_train: pd.Series,
-    y_test: pd.Series,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
     model_name: str,
     target_name: str,
     random_state: int = 42,
 ) -> None:
-    """Train a regressor and log the results to MLflow.
+    """Train a regressor and log the results to its own MLflow experiment.
+
+    Each model type gets a dedicated experiment (e.g. fraud_detection_RandomForest)
+    so metrics across different model families are never mixed in the same view.
 
     Parameters
     ----------
-    X_train, X_test : array-like
+    X_train, X_test : np.ndarray
         Feature matrices for training and testing.
-    y_train, y_test : array-like
+    y_train, y_test : np.ndarray
         Target vectors for training and testing.
     model_name : str
         Name of the model to train ('RandomForest' or 'XGBoost').
     target_name : str
-        Name of the target variable (used for run naming).
+        Name of the target variable — used as the run name within the experiment.
     random_state : int
         Random seed for reproducibility.
     """
     model = get_regressor(model_name, random_state)
-    with mlflow.start_run(run_name=f"{target_name}_{model_name}"):
+
+    # Each model type lives in its own experiment
+    experiment_id = _get_or_create_experiment(f"fraud_detection_{model_name}")
+
+    with mlflow.start_run(experiment_id=experiment_id, run_name=target_name):
         mlflow.log_param("model_name", model_name)
         mlflow.log_param("target", target_name)
+
         model.fit(X_train, y_train)
         preds = model.predict(X_test)
+
         mse = mean_squared_error(y_test, preds)
-        rmse = np.sqrt(mean_squared_error(y_test, preds))
+        rmse = np.sqrt(mse)
         r2 = r2_score(y_test, preds)
+
         mlflow.log_metric("mse", mse)
         mlflow.log_metric("rmse", rmse)
         mlflow.log_metric("r2", r2)
-        # Use name= keyword; artifact_path is deprecated
+
         mlflow.sklearn.log_model(model, name=f"model_{target_name}_{model_name}")
 
+
+# ---------------------------------------------------------------------------
+# CLI helpers
+# ---------------------------------------------------------------------------
 
 def parse_models_arg(models_str: str) -> List[str]:
     """Parse a comma‑separated list of model names from the command line.
@@ -303,6 +374,7 @@ def parse_models_arg(models_str: str) -> List[str]:
     ----------
     models_str : str
         Comma‑separated list of model identifiers or the special word 'all'.
+
     Returns
     -------
     list of str
@@ -324,6 +396,10 @@ def parse_models_arg(models_str: str) -> List[str]:
             raise ValueError(f"Unknown model specified: {m}")
     return normalised
 
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -358,6 +434,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Pull mlflow.db from S3 before any MLflow calls so we accumulate history
+    _sync_db_from_s3()
+
     # Load data
     df = pd.read_csv(args.data)
     feature_cols = [col for col in df.columns if col.startswith("feature_")]
@@ -371,9 +450,8 @@ def main() -> None:
         "anomaly_score": "regression",
     }
 
-    # Train/test indices reused for all targets
-    num_samples = len(df)
-    all_indices = np.arange(num_samples)
+    # Train/test split — indices reused across all targets for consistency
+    all_indices = np.arange(len(df))
     train_indices, test_indices = train_test_split(
         all_indices,
         test_size=args.test_size,
@@ -383,43 +461,36 @@ def main() -> None:
     X_train = X[train_indices]
     X_test = X[test_indices]
 
-    # Start (or create) the MLflow experiment with S3 artifact location
-    experiment_id = _get_or_create_experiment("fraud_detection_multivariate")
-    mlflow.set_experiment(experiment_id=experiment_id)
-
     # Determine which models to train
     models_to_train = parse_models_arg(args.models)
 
-    # Train and log each target separately using the same splits
+    # Train and log — each model type routes to its own experiment internally
     for target_name, task_type in targets.items():
         y = df[target_name].values
         y_train = y[train_indices]
         y_test = y[test_indices]
+
         if task_type == "classification":
             for model_name in models_to_train:
                 train_and_log_classification(
-                    X_train,
-                    X_test,
-                    y_train,
-                    y_test,
+                    X_train, X_test, y_train, y_test,
                     model_name=model_name,
                     target_name=target_name,
                     random_state=args.random_state,
                 )
         else:
-            # For regression, only train models that support regression
             for model_name in models_to_train:
                 if model_name == "LogisticRegression":
-                    continue
+                    continue  # Not valid for regression tasks
                 train_and_log_regression(
-                    X_train,
-                    X_test,
-                    y_train,
-                    y_test,
+                    X_train, X_test, y_train, y_test,
                     model_name=model_name,
                     target_name=target_name,
                     random_state=args.random_state,
                 )
+
+    # Push updated mlflow.db back to S3 so history is persisted remotely
+    _push_db_to_s3()
 
     print("Training complete.  Runs logged to MLflow.")
     print(f"Artifacts stored at: {ARTIFACT_LOCATION}")
