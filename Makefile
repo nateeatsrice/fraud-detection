@@ -1,7 +1,7 @@
 # Makefile for common development tasks
 
 # This tells Make these are command names, not actual files. Without this, Make might get confused if you have a file named "test" or "install".
-.PHONY: help setup install test lint docker-build docker-run docker-push ecr-login terraform-init terraform-apply terraform-destroy prefect-flow clean lambda-package lambda-clean deploy
+.PHONY: help setup install test mlflow-push mlflow-pull mlflow-status lint docker-build docker-run docker-push ecr-login terraform-init terraform-apply terraform-destroy prefect-flow clean lambda-package lambda-clean deploy
 
 # Variables
 AWS_REGION := us-east-2
@@ -21,6 +21,11 @@ help:
 	@echo ""
 	@echo "  Testing:"
 	@echo "    test            Run unit and integration tests"
+	@echo ""
+	@echo "  MLflow:"
+	@echo "    push            Upload local mlflow.db to S3"
+	@echo "    pull            Download mlflow.db from S3 to local"
+	@echo "    status          status update on local and S3 mlflow.db files"
 	@echo ""
 	@echo "  Docker:"
 	@echo "    docker-build    Build the Docker image locally"
@@ -54,6 +59,15 @@ install:
 
 test:
 	uv run pytest -q
+
+mlflow-push:
+	./scripts/sync_mlflow.sh push
+
+mlflow-pull:
+	./scripts/sync_mlflow.sh pull
+
+mlflow-status:
+	./scripts/sync_mlflow.sh status
 
 docker-build:
 	docker build --progress=plain -t $(IMAGE_NAME):latest .
