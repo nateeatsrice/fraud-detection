@@ -1,9 +1,9 @@
 """
-Synthetic dataset generator for the fraud‑detection project.
+Synthetic dataset generator for the fraud-detection project.
 
-This script uses scikit‑learn to create a set of numeric features and several
+This script uses scikit-learn to create a set of numeric features and several
 correlated outcome variables.  You can adjust the number of samples
-produced and the output location on disk using command‑line arguments.
+produced and the output location on disk using command-line arguments.
 
 Usage:
     python generate_data.py --n_samples 10000 --output data/transactions.csv

@@ -8,15 +8,15 @@ each target variable.  When a request arrives the appropriate model is
 selected (or trained on demand) and used to produce a prediction.
 
 Endpoints are provided for generic prediction as well as chat and voice
-channels to illustrate multi‑channel support.  All channels share the
+channels to illustrate multi-channel support.  All channels share the
 same underlying prediction logic.
 """
 
 from __future__ import annotations
 
-import asyncio
+#import asyncio
 from functools import lru_cache
-from typing import Dict, List, Optional
+from typing import Dict, List#, Optional
 
 from fastapi import FastAPI, HTTPException, Path
 from pydantic import BaseModel, Field, validator
@@ -27,7 +27,7 @@ import pandas as pd
 from data.generate_data import generate_dataset
 from src.train import (
     get_classifier,
-    get_regressor,
+    get_regressor
 )
 
 
@@ -63,7 +63,7 @@ def load_training_data(n_samples: int = 1000, random_state: int = 42) -> pd.Data
 
 
 class ModelRepository:
-    """Simple in‑memory model registry for serving predictions."""
+    """Simple in-memory model registry for serving predictions."""
 
     def __init__(self) -> None:
         self.models: Dict[str, Dict[str, object]] = {}
